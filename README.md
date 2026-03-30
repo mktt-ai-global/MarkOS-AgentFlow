@@ -15,12 +15,12 @@
 ## 📸 Visual Showcase / 视觉展示
 
 ### Dashboard / 控制面板
-![Dashboard Screenshot](https://raw.githubusercontent.com/mktt-ai-global/MarkOS-AgentFlow/main/docs/images/dashboard-preview.png)
+![Dashboard Screenshot](./docs/images/dashboard-preview.png)
 > *The "Frosted Glass" UI provides a high-transparency, modern interface for real-time monitoring.*
 > *“磨砂玻璃” UI 为实时监控提供了一个高透明度、现代化的交互界面。*
 
 ### Settings / 设置面板
-![Settings Screenshot](https://raw.githubusercontent.com/mktt-ai-global/MarkOS-AgentFlow/main/docs/images/settings-preview.png)
+![Settings Screenshot](./docs/images/settings-preview.png)
 > *3-UI style configuration panel for seamless environment management.*
 > *3-UI 风格配置面板，实现无缝的环境管理。*
 
