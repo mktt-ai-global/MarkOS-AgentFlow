@@ -38,3 +38,11 @@
 2. Implement changes and add tests.
 3. Run `pre-commit run --all-files`.
 4. Submit PR.
+
+## Versioning Strategy (Semantic Versioning)
+We follow [SemVer 2.0.0](https://semver.org/):
+- **Major (X.0.0)**: Breaking architectural changes or total UI redesigns.
+- **Minor (0.X.0)**: New agent roles, major feature sets, or database schema changes.
+- **Patch (0.0.X)**: Bug fixes, dependency updates, and minor UI polishes.
+
+Every release should be accompanied by a manual or automated update to `CHANGELOG.md`.

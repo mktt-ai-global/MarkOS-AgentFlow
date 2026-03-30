@@ -2,8 +2,9 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+import time
 
 from app.api.v1.router import api_router
 from app.config import settings
@@ -37,6 +38,17 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+
+    # Performance Logging Middleware
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = (time.time() - start_time) * 1000
+        logging.getLogger("agentflow").info(
+            f"{request.method} {request.url.path} - {response.status_code} ({process_time:.2f}ms)"
+        )
+        return response
     
     if settings.CORS_ORIGINS:
         app.add_middleware(
