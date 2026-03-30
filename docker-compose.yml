@@ -1,0 +1,97 @@
+# AgentFlow Enterprise (v2.0) Orchestration
+version: '3.8'
+
+services:
+  # 1. Database - PostgreSQL 16
+  db:
+    image: postgres:16-alpine
+    container_name: agentflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-agentflow_v2}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-agentflow_v2}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Cache & Message Broker - Redis 7
+  redis:
+    image: redis:7-alpine
+    container_name: agentflow-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 3. FastAPI Gateway (Port 8000)
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/api-gateway.Dockerfile
+    container_name: agentflow-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.enterprise
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379/0
+
+  # 4. Python Orchestration Service (Internal)
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/orchestrator.Dockerfile
+    container_name: agentflow-orchestrator
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.enterprise
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - REDIS_URL=redis://redis:6379/0
+
+  # 5. Next.js Dashboard (Port 3000)
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/dashboard.Dockerfile
+    container_name: agentflow-dashboard
+    restart: unless-stopped
+    depends_on:
+      - api-gateway
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.enterprise
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/v2
+
+volumes:
+  postgres_data:
+  redis_data:
+postgres_data:
+  redis_data:

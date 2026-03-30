@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentflow.local/schemas/handoff.schema.json",
+  "title": "AgentFlow Task Handoff",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "outputs", "decisions", "open_issues", "next_hints"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "outputs": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path", "description"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["doc", "code", "test", "report", "artifact", "log"]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "is_required": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["decision", "rationale"],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "impact": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "open_issues": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue", "severity"],
+        "properties": {
+          "issue": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "owner_hint": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      }
+    },
+    "next_hints": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500
+      }
+    }
+  }
+}

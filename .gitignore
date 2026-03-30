@@ -1,0 +1,37 @@
+.DS_Store
+.env
+.env.local
+.env.*.local
+.idea/
+.vscode/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+*.tsbuildinfo
+htmlcov/
+
+# Runtime data
+logs/
+data/
+uploads/
+tmp/
+
+# Database / queue
+*.sqlite3
+*.db
+
+# OS / editor
+Thumbs.db
