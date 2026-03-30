@@ -1,11 +1,12 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 import uuid
 
 from app.db.session import get_db_session
 from app.models.agent import Agent
 from app.schemas import AgentCreate, AgentRead, AgentUpdate
+from app.core.exceptions import NotFoundException
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ def update_agent(
 ) -> Any:
     agent = db.get(Agent, id)
     if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+        raise NotFoundException(entity="Agent", entity_id=id)
     agent_data = agent_in.dict(exclude_unset=True)
     for key, value in agent_data.items():
         setattr(agent, key, value)
@@ -56,7 +57,7 @@ def read_agent(
 ) -> Any:
     agent = db.get(Agent, id)
     if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+        raise NotFoundException(entity="Agent", entity_id=id)
     return agent
 
 @router.delete("/{id}", response_model=AgentRead)
@@ -67,7 +68,7 @@ def delete_agent(
 ) -> Any:
     agent = db.get(Agent, id)
     if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
+        raise NotFoundException(entity="Agent", entity_id=id)
     db.delete(agent)
     db.commit()
     return agent

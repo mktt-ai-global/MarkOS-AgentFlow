@@ -1,11 +1,12 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 import uuid
 
 from app.db.session import get_db_session
 from app.models.task import Task
 from app.schemas import TaskCreate, TaskRead, TaskUpdate
+from app.core.exceptions import NotFoundException
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ def update_task(
 ) -> Any:
     task = db.get(Task, id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise NotFoundException(entity="Task", entity_id=id)
     task_data = task_in.dict(exclude_unset=True)
     for key, value in task_data.items():
         setattr(task, key, value)
@@ -56,7 +57,7 @@ def read_task(
 ) -> Any:
     task = db.get(Task, id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise NotFoundException(entity="Task", entity_id=id)
     return task
 
 @router.delete("/{id}", response_model=TaskRead)
@@ -67,7 +68,7 @@ def delete_task(
 ) -> Any:
     task = db.get(Task, id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise NotFoundException(entity="Task", entity_id=id)
     db.delete(task)
     db.commit()
     return task

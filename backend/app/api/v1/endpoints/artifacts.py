@@ -1,11 +1,12 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 import uuid
 
 from app.db.session import get_db_session
 from app.models.artifact import Artifact
 from app.schemas import ArtifactCreate, ArtifactRead, ArtifactUpdate
+from app.core.exceptions import NotFoundException
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ def update_artifact(
 ) -> Any:
     artifact = db.get(Artifact, id)
     if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+        raise NotFoundException(entity="Artifact", entity_id=id)
     artifact_data = artifact_in.dict(exclude_unset=True)
     for key, value in artifact_data.items():
         setattr(artifact, key, value)
@@ -56,7 +57,7 @@ def read_artifact(
 ) -> Any:
     artifact = db.get(Artifact, id)
     if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+        raise NotFoundException(entity="Artifact", entity_id=id)
     return artifact
 
 @router.delete("/{id}", response_model=ArtifactRead)
@@ -67,7 +68,7 @@ def delete_artifact(
 ) -> Any:
     artifact = db.get(Artifact, id)
     if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+        raise NotFoundException(entity="Artifact", entity_id=id)
     db.delete(artifact)
     db.commit()
     return artifact

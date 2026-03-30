@@ -8,6 +8,7 @@ import time
 
 from app.api.v1.router import api_router
 from app.config import settings
+from app.core.exceptions import register_exception_handlers
 from app.services.orchestrator import orchestrator
 
 @asynccontextmanager
@@ -38,6 +39,9 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
+
+    # Register Global Exception Handlers
+    register_exception_handlers(app)
 
     # Performance Logging Middleware
     @app.middleware("http")

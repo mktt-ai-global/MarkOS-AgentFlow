@@ -1,11 +1,12 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 import uuid
 
 from app.db.session import get_db_session
 from app.models.project import Project
 from app.schemas import ProjectCreate, ProjectRead, ProjectUpdate
+from app.core.exceptions import NotFoundException
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ def update_project(
 ) -> Any:
     project = db.get(Project, id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise NotFoundException(entity="Project", entity_id=id)
     project_data = project_in.dict(exclude_unset=True)
     for key, value in project_data.items():
         setattr(project, key, value)
@@ -56,7 +57,7 @@ def read_project(
 ) -> Any:
     project = db.get(Project, id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise NotFoundException(entity="Project", entity_id=id)
     return project
 
 @router.delete("/{id}", response_model=ProjectRead)
@@ -67,7 +68,7 @@ def delete_project(
 ) -> Any:
     project = db.get(Project, id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise NotFoundException(entity="Project", entity_id=id)
     db.delete(project)
     db.commit()
     return project
