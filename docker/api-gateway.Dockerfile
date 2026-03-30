@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir --upgrade pip
-COPY services/api-gateway/requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Stage 2: Final Runtime
@@ -29,9 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
-# Copy application code (Assuming context is root)
-COPY services/api-gateway /app/services/api-gateway
-# COPY packages /app/packages  # Uncomment when shared packages exist
+# Copy application code
+COPY backend /app/backend
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
@@ -39,4 +38,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 # Using gunicorn for production
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "services.api-gateway.main:app", "--bind", "0.0.0.0:8000", "--workers", "4"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "backend.app.main:app", "--bind", "0.0.0.0:8000", "--workers", "4"]

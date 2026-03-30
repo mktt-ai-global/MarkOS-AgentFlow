@@ -1,54 +1,32 @@
-from __future__ import annotations
-
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
-from enum import Enum
-from uuid import uuid4
+from sqlmodel import SQLModel, Field, Relationship
+import uuid
+import json
 
-from sqlalchemy import JSON, DateTime, Enum as SqlEnum, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+if TYPE_CHECKING:
+    from .project import Project
+    from .agent import Agent
+    from .artifact import Artifact
 
-from app.models.base import Base
-
-
-class TaskStatus(str, Enum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    DONE = "DONE"
-    BLOCKED = "BLOCKED"
-    FAILED = "FAILED"
-    SKIPPED = "SKIPPED"
-
-
-class Task(Base):
-    __tablename__ = "tasks"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    assigned_agent: Mapped[str] = mapped_column(String(16), nullable=False, default="AUTO")
-    status: Mapped[TaskStatus] = mapped_column(
-        SqlEnum(TaskStatus),
-        nullable=False,
-        default=TaskStatus.PENDING,
-        index=True,
-    )
-    depends_on: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
-    handoff_context: Mapped[dict[str, object]] = mapped_column(
-        JSON,
-        nullable=False,
-        default=dict,
-    )
-    output: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False, default=dict)
-    token_used: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
+class Task(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    title: str = Field(index=True)
+    description: Optional[str] = None
+    status: str = Field(default="pending", index=True) # pending, in_progress, completed, failed
+    priority: int = Field(default=0)
+    
+    project_id: uuid.UUID = Field(foreign_key="project.id")
+    project: "Project" = Relationship(back_populates="tasks")
+    
+    agent_id: Optional[uuid.UUID] = Field(default=None, foreign_key="agent.id")
+    agent: Optional["Agent"] = Relationship(back_populates="tasks")
+    
+    # JSON field for inputs/outputs
+    input_data: str = Field(default="{}")
+    output_data: Optional[str] = None
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    artifacts: List["Artifact"] = Relationship(back_populates="task")

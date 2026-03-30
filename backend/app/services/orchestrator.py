@@ -1,200 +1,75 @@
-from __future__ import annotations
+import asyncio
+import logging
+from typing import List, Optional
+from uuid import UUID
+from sqlmodel import Session, select
+from app.db.session import get_session_factory
+from app.models.task import Task
+from app.models.agent import Agent
 
-import json
-from datetime import datetime, timezone
-from typing import Any
-
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-
-from app.core.config import get_settings
-from app.models.task import Task, TaskStatus
-from app.schemas.handoff import HandoffPayload
-
+logger = logging.getLogger(__name__)
 
 class OrchestratorService:
-    """Task orchestration rules for dependency sequencing and handoff lifecycle."""
+    def __init__(self, check_interval: int = 5):
+        self.check_interval = check_interval
+        self.running = False
+        self._task: Optional[asyncio.Task] = None
 
-    def __init__(self) -> None:
-        self.settings = get_settings()
+    async def start(self):
+        if self.running:
+            return
+        logger.info("Starting Orchestrator Service...")
+        self.running = True
+        self._task = asyncio.create_task(self._loop())
 
-    def can_start_task(self, dependency_statuses: list[TaskStatus]) -> bool:
-        return all(status == TaskStatus.DONE for status in dependency_statuses)
+    async def stop(self):
+        self.running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Orchestrator Service stopped.")
 
-    def should_autorun_task(self, task: Task) -> bool:
-        return task.assigned_agent.strip().upper() in {"AUTO", "PM", "DEV", "QA"}
+    async def _loop(self):
+        while self.running:
+            try:
+                await self.process_tasks()
+            except Exception as e:
+                logger.error(f"Error in orchestrator loop: {e}")
+            await asyncio.sleep(self.check_interval)
 
-    def validate_handoff(self, payload: HandoffPayload) -> HandoffPayload:
-        normalized = {
-            "summary": self._truncate_text(payload.summary, 720),
-            "outputs": [
-                {
-                    "kind": output.kind,
-                    "path": self._truncate_text(output.path, 240),
-                    "description": self._truncate_text(output.description, 180),
-                    "is_required": output.is_required,
-                }
-                for output in payload.outputs[:6]
-            ],
-            "decisions": [
-                {
-                    "decision": self._truncate_text(decision.decision, 140),
-                    "rationale": self._truncate_text(decision.rationale, 240),
-                    "impact": self._truncate_text(decision.impact, 180)
-                    if decision.impact
-                    else None,
-                }
-                for decision in payload.decisions[:5]
-            ],
-            "open_issues": [
-                {
-                    "issue": self._truncate_text(issue.issue, 220),
-                    "severity": issue.severity,
-                    "owner_hint": self._truncate_text(issue.owner_hint, 120)
-                    if issue.owner_hint
-                    else None,
-                }
-                for issue in payload.open_issues[:5]
-            ],
-            "next_hints": [self._truncate_text(hint, 160) for hint in payload.next_hints[:6]],
-        }
+    async def process_tasks(self):
+        session_factory = get_session_factory()
+        with session_factory() as db:
+            # 1. Find pending tasks
+            statement = select(Task).where(Task.status == "pending")
+            pending_tasks = db.exec(statement).all()
+            
+            for task in pending_tasks:
+                # Logic to check dependencies (if any)
+                # For now, just move to ready if an agent is available
+                await self.assign_agent(db, task)
 
-        normalized = self._shrink_to_token_budget(normalized)
-        return HandoffPayload.model_validate(normalized)
+    async def assign_agent(self, db: Session, task: Task):
+        # Simple agent assignment logic: find an idle agent of correct type
+        # (This would be more complex in a real system)
+        statement = select(Agent).where(Agent.status == "idle")
+        agent = db.exec(statement).first()
+        
+        if agent:
+            task.agent_id = agent.id
+            task.status = "assigned"
+            agent.status = "busy"
+            db.add(task)
+            db.add(agent)
+            db.commit()
+            logger.info(f"Assigned task {task.id} to agent {agent.id}")
+            # In a real system, we would trigger the agent-worker here
+            # For now, let's just simulate it moving to in_progress
+            task.status = "in_progress"
+            db.add(task)
+            db.commit()
 
-    def estimate_handoff_tokens(self, payload: HandoffPayload | dict[str, Any]) -> int:
-        if isinstance(payload, HandoffPayload):
-            data = payload.model_dump(mode="json")
-        else:
-            data = payload
-
-        return max(1, round(len(json.dumps(data, ensure_ascii=False)) / 4))
-
-    def merge_upstream_handoff(
-        self,
-        existing_context: dict[str, Any],
-        *,
-        source_task: Task,
-        handoff: HandoffPayload,
-    ) -> dict[str, Any]:
-        upstream_handoffs = existing_context.get("upstream_handoffs", [])
-        if not isinstance(upstream_handoffs, list):
-            upstream_handoffs = []
-
-        transitive_entries = source_task.handoff_context.get("upstream_handoffs", [])
-        if not isinstance(transitive_entries, list):
-            transitive_entries = []
-
-        merged = [
-            item
-            for item in upstream_handoffs
-            if isinstance(item, dict) and item.get("source_task_id")
-        ]
-        merged.extend(
-            item
-            for item in transitive_entries
-            if isinstance(item, dict) and item.get("source_task_id")
-        )
-        merged.append(
-            {
-                "source_task_id": source_task.id,
-                "source_title": source_task.title,
-                "received_at": datetime.now(timezone.utc).isoformat(),
-                "handoff": self.validate_handoff(handoff).model_dump(mode="json"),
-            }
-        )
-
-        deduped: list[dict[str, Any]] = []
-        seen_ids: set[str] = set()
-        for item in reversed(merged):
-            source_task_id = str(item.get("source_task_id", ""))
-            if not source_task_id or source_task_id in seen_ids:
-                continue
-
-            seen_ids.add(source_task_id)
-            deduped.append(item)
-
-        return {
-            **existing_context,
-            "upstream_handoffs": list(reversed(deduped))[-8:],
-        }
-
-    def list_direct_downstream_tasks(self, session: Session, source_task_id: str) -> list[Task]:
-        statement = select(Task).order_by(Task.created_at.asc(), Task.id.asc())
-        return [
-            task
-            for task in session.scalars(statement)
-            if source_task_id in task.depends_on
-        ]
-
-    def list_ready_downstream_tasks(self, session: Session, source_task_id: str) -> list[Task]:
-        tasks = self.list_direct_downstream_tasks(session, source_task_id)
-
-        return [
-            task
-            for task in tasks
-            if task.status == TaskStatus.PENDING
-            and self.can_start_task(
-                [
-                    dependency.status
-                    for dependency in self._load_dependency_tasks(session, task.depends_on)
-                ]
-            )
-        ]
-
-    def _load_dependency_tasks(self, session: Session, dependency_ids: list[str]) -> list[Task]:
-        if not dependency_ids:
-            return []
-
-        statement = select(Task).where(Task.id.in_(dependency_ids))
-        dependency_map = {task.id: task for task in session.scalars(statement)}
-        return [dependency_map[dependency_id] for dependency_id in dependency_ids if dependency_id in dependency_map]
-
-    def _truncate_text(self, value: str | None, limit: int) -> str:
-        if not value:
-            return ""
-
-        text = value.strip()
-        if len(text) <= limit:
-            return text
-
-        return f"{text[: max(limit - 3, 0)]}..."
-
-    def _shrink_to_token_budget(self, data: dict[str, Any]) -> dict[str, Any]:
-        while self.estimate_handoff_tokens(data) > self.settings.handoff_max_tokens:
-            if len(data["next_hints"]) > 1:
-                data["next_hints"] = data["next_hints"][:-1]
-                continue
-
-            if len(data["outputs"]) > 1:
-                data["outputs"] = data["outputs"][:-1]
-                continue
-
-            if len(data["decisions"]) > 1:
-                data["decisions"] = data["decisions"][:-1]
-                continue
-
-            if len(data["open_issues"]) > 1:
-                data["open_issues"] = data["open_issues"][:-1]
-                continue
-
-            data["summary"] = self._truncate_text(data["summary"], max(len(data["summary"]) // 2, 80))
-
-            if data["outputs"]:
-                data["outputs"][0]["description"] = self._truncate_text(
-                    data["outputs"][0]["description"],
-                    96,
-                )
-
-            if data["decisions"]:
-                data["decisions"][0]["rationale"] = self._truncate_text(
-                    data["decisions"][0]["rationale"],
-                    120,
-                )
-
-            if self.estimate_handoff_tokens(data) <= self.settings.handoff_max_tokens:
-                break
-
-            break
-
-        return data
+orchestrator = OrchestratorService()

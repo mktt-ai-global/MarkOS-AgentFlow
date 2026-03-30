@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for Python Orchestrator
+# Multi-stage Dockerfile for FastAPI Orchestrator (Worker)
 # Stage 1: Dependency Builder
 FROM python:3.12-slim as builder
 
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir --upgrade pip
-COPY services/orchestrator/requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Stage 2: Final Runtime
@@ -21,20 +21,20 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install runtime dependencies for psycopg2 (libpq)
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    psmisc \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
-# Copy application code (Assuming context is root)
-COPY services/orchestrator /app/services/orchestrator
-# COPY packages /app/packages  # Uncomment when shared packages exist
+# Copy application code
+COPY backend /app/backend
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
-# Orchestrator runs a long-lived loop
-CMD ["python", "-m", "services.orchestrator.loop"]
+# Entry point for the orchestrator background process
+CMD ["python", "-m", "backend.app.services.orchestrator"]

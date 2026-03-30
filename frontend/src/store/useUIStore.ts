@@ -2,14 +2,16 @@ import { create } from 'zustand';
 
 interface UIState {
   sidebarOpen: boolean;
-  activeTaskId: string | null;
+  theme: 'light' | 'dark';
   toggleSidebar: () => void;
-  setActiveTaskId: (id: string | null) => void;
+  setSidebarOpen: (open: boolean) => void;
+  toggleTheme: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   sidebarOpen: true,
-  activeTaskId: null,
+  theme: 'dark',
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  setActiveTaskId: (id) => set({ activeTaskId: id }),
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
 }));

@@ -1,48 +1,57 @@
 from __future__ import annotations
-
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.router import api_router
-from app.core.config import get_settings
-from app.core.logging import configure_logging
-
+from app.api.v1.router import api_router
+from app.config import settings
+from app.services.orchestrator import orchestrator
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    settings = get_settings()
-    configure_logging(settings.log_level)
-    settings.artifacts_dir.mkdir(parents=True, exist_ok=True)
+async def lifespan(app: FastAPI):
+    # Startup: Start orchestrator
     logger = logging.getLogger("agentflow")
     logger.info(
         "Starting %s in %s mode",
-        settings.app_name,
-        settings.app_env,
+        settings.PROJECT_NAME,
+        settings.APP_ENV,
     )
+    
+    # Optional: Start background control loops or workers
+    await orchestrator.start()
+    
     yield
-    logger.info("Stopping %s", settings.app_name)
-
+    
+    # Shutdown: Stop orchestrator
+    logger.info("Stopping %s", settings.PROJECT_NAME)
+    await orchestrator.stop()
 
 def create_app() -> FastAPI:
-    settings = get_settings()
-
     app = FastAPI(
-        title=settings.app_name,
-        debug=settings.app_debug,
+        title=settings.PROJECT_NAME,
+        debug=settings.APP_DEBUG,
         lifespan=lifespan,
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    app.include_router(api_router, prefix=settings.api_prefix)
+    
+    # Set all CORS enabled origins
+    if settings.CORS_ORIGINS:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=[str(origin) for origin in settings.CORS_ORIGINS],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
+    # Domain routes
+    app.include_router(api_router, prefix=settings.API_V1_STR)
+    
     return app
 
-
 app = create_app()
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "app": settings.PROJECT_NAME}

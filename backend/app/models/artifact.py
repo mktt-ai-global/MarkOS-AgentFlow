@@ -1,4 +1,4 @@
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Relationship
 import uuid
@@ -6,13 +6,14 @@ import uuid
 if TYPE_CHECKING:
     from .task import Task
 
-class Agent(SQLModel, table=True):
+class Artifact(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(index=True)
-    type: str = Field(index=True)  # e.g., 'orchestrator', 'researcher', 'coder'
-    system_prompt: str
-    status: str = Field(default="idle")  # 'idle', 'busy', 'offline'
+    type: str = Field(index=True)  # 'file', 'link', 'code', 'data'
+    content_path: str  # Path in storage or external URL
+    
+    task_id: uuid.UUID = Field(foreign_key="task.id")
+    task: "Task" = Relationship(back_populates="artifacts")
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    tasks: List["Task"] = Relationship(back_populates="agent")

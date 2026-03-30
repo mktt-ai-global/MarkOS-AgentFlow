@@ -8,18 +8,20 @@ services:
     container_name: agentflow-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-agentflow_v2}
+      POSTGRES_DB: ${DB_NAME:-agentflow}
       POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-agentflow_secret_123}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-agentflow_v2}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-agentflow}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - agentflow-network
 
   # 2. Cache & Message Broker - Redis 7
   redis:
@@ -35,6 +37,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - agentflow-network
 
   # 3. FastAPI Gateway (Port 8000)
   api-gateway:
@@ -51,30 +55,14 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env.enterprise
+      - .env
     environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-admin}:${DB_PASSWORD:-agentflow_secret_123}@db:5432/${DB_NAME:-agentflow}
       - REDIS_URL=redis://redis:6379/0
+    networks:
+      - agentflow-network
 
-  # 4. Python Orchestration Service (Internal)
-  orchestrator:
-    build:
-      context: .
-      dockerfile: docker/orchestrator.Dockerfile
-    container_name: agentflow-orchestrator
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    env_file:
-      - .env.enterprise
-    environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
-      - REDIS_URL=redis://redis:6379/0
-
-  # 5. Next.js Dashboard (Port 3000)
+  # 4. Next.js Dashboard (Port 3000)
   dashboard:
     build:
       context: .
@@ -86,12 +74,16 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - .env.enterprise
+      - .env
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/v2
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    networks:
+      - agentflow-network
+
+networks:
+  agentflow-network:
+    driver: bridge
 
 volumes:
   postgres_data:
-  redis_data:
-postgres_data:
   redis_data:

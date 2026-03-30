@@ -1,40 +1,41 @@
-from __future__ import annotations
+from enum import Enum
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime
+import uuid
 
-from typing import Literal
+class ArtifactType(str, Enum):
+    CODE = "CODE"
+    DOC = "DOC"
+    TEST = "TEST"
+    REPORT = "REPORT"
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class HandoffOutput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    kind: Literal["doc", "code", "test", "report", "artifact", "log"]
+class HandoffArtifact(BaseModel):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    type: str  # CODE, DOC, TEST, etc.
     path: str
-    description: str
-    is_required: bool = True
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
-
-class HandoffDecision(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    decision: str
+class Decision(BaseModel):
+    text: str
     rationale: str
-    impact: str | None = None
 
-
-class HandoffIssue(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    issue: str
-    severity: Literal["low", "medium", "high", "critical"]
-    owner_hint: str | None = None
-
+class HandoffMetadata(BaseModel):
+    version: str = "2.0"
+    task_id: uuid.UUID
+    agent_id: uuid.UUID
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 class HandoffPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
     summary: str
-    outputs: list[HandoffOutput] = Field(default_factory=list)
-    decisions: list[HandoffDecision] = Field(default_factory=list)
-    open_issues: list[HandoffIssue] = Field(default_factory=list)
-    next_hints: list[str] = Field(default_factory=list)
+    artifacts: List[HandoffArtifact] = Field(default_factory=list)
+    decisions: List[Decision] = Field(default_factory=list)
+    remaining_debt: List[str] = Field(default_factory=list)
+    next_steps_hint: Optional[str] = None
+
+class Handoff(BaseModel):
+    version: str = "2.0"
+    metadata: HandoffMetadata
+    payload: HandoffPayload
+
+    model_config = ConfigDict(from_attributes=True)
