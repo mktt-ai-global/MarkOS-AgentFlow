@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+.next
+backend/__pycache__
+backend/.pytest_cache
+*.pyc
+.env
+.env.local
+docker-compose.override.yml
